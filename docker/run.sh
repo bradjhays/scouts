@@ -5,7 +5,10 @@ cd /app
 if [[ ! -d /app/scouts ]]; then
     git clone https://github.com/bradjhays/scouts.git --branch main --single-branch
 fi
+
 cd scouts/$SERVICE
+git pull
+git log -n 1
 export PIP_ROOT_USER_ACTION=ignore
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONUNBUFFERED=1

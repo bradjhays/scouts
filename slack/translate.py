@@ -243,6 +243,7 @@ def translate_ics(ics_file_obj):
         new_res.append(new)
 
     data_file_obj = Path("generated/data.json")
+    data_file_obj.parent.mkdir(parents=True, exist_ok=True)
     with data_file_obj.open("w", encoding="utf-8") as fobj:
         json.dump(new_res, fobj, indent=4)
 
