@@ -25,8 +25,9 @@ def pull_and_read(ics_url, pull_new=True):
     if not ics_url:
         raise ValueError("ics_url is required!")
     cal_file_obj = Path("calendars/BSA_116_Activities.ics")
+    cal_file_obj.parent.mkdir(parents=True, exist_ok=True)
     if pull_new:
-        with cal_file_obj.open("w", encoding="utf-8") as fobj:
+        with cal_file_obj.open("w+", encoding="utf-8") as fobj:
             fobj.write(requests.get(ics_url).text)
     return translate.translate_ics(ics_file_obj=cal_file_obj)
 
