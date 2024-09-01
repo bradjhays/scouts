@@ -1,0 +1,5 @@
+icalendar
+jicson
+python-dotenv
+requests
+tzlocal

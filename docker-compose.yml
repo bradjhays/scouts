@@ -1,0 +1,13 @@
+services:
+  GoatBot:
+    image: python:3.10
+    command: 
+      - /app/docker/run.sh
+    env_file: "${SERVICE}/.env"
+    environment:
+      - SERVICE
+      - OPTS
+    volumes:
+      - ./docker:/app/docker
+      # for testing
+      # - ./:/app/scouts
