@@ -39,4 +39,5 @@ Below are the currently configured jobs.
 ```
 # Weekly Meetings - Post Tuesday @ 700 am pst
 0 7 * * TUE     cd <path_to_repo> && SERVICE=slack OPTS=--notify_meeting --channel announcement docker-compose up
+0 * * * TUE     cd <path_to_repo> && SERVICE=slack OPTS=--add_announce docker-compose up
 ```

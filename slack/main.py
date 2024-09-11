@@ -7,9 +7,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import requests
-import translate
 from dateutil import parser
 from dotenv import dotenv_values
+
+import add_to_channel
+import translate
 
 logger = logging.getLogger(__name__)
 CONFIG = {
@@ -28,7 +30,7 @@ def pull_and_read(ics_url, pull_new=True):
     cal_file_obj.parent.mkdir(parents=True, exist_ok=True)
     if pull_new:
         with cal_file_obj.open("w+", encoding="utf-8") as fobj:
-            fobj.write(requests.get(ics_url).text)
+            fobj.write(requests.get(ics_url, timeout=30).text)
     return translate.translate_ics(ics_file_obj=cal_file_obj)
 
 
@@ -64,10 +66,12 @@ class SlackGoatBot:
         if not self.hook_url:
             raise ValueError(f"'{hook_key}' not found in .env")
 
-        calendar_info = pull_and_read(ics_url=CONFIG["TM_URL"])
-        print(f"found {len(calendar_info)} calendar items")
         if cli_args.notify_meeting:
+            calendar_info = pull_and_read(ics_url=CONFIG["TM_URL"])
+            print(f"found {len(calendar_info)} calendar items")
             self.notify_next_meeting(calendar_info=calendar_info, weeks=cli_args.weeks)
+        elif cli_args.add_announce:
+            add_to_channel.add_all_users_to_channel()
         else:
             raise ValueError(f"invalid selection: {cli_args}")
 
@@ -166,7 +170,7 @@ class SlackGoatBot:
         if self.cli_args.dry_run:
             logger.warning("dry run enabled, not sending to slack")
         else:
-            requests.post(self.hook_url, json=payload)
+            requests.post(self.hook_url, json=payload, timeout=30)
 
 
 if __name__ == "__main__":
@@ -185,6 +189,12 @@ if __name__ == "__main__":
         "--notify_meeting",
         action="store_true",
         help="Send notification about the next meeting",
+    )
+    arg_parser.add_argument(
+        "-aa",
+        "--add_announce",
+        action="store_true",
+        help="Add all users to #announcements",
     )
     arg_parser.add_argument(
         "-c",

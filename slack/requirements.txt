@@ -2,4 +2,5 @@ icalendar
 jicson
 python-dotenv
 requests
+slack_sdk
 tzlocal
