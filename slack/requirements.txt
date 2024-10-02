@@ -1,5 +1,6 @@
 icalendar
 jicson
+pytz
 python-dotenv
 requests
 slack_sdk
