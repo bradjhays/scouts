@@ -36,7 +36,7 @@ def save_known_users(users):
 
 def add_all_users_to_channel(channel_name='announcements', channel_id='C07AUBXDLSG'):
     """Add all the user in the workspace to the given channel."""
-    oauth_token = os.getenv("oauth_token")
+    oauth_token = os.getenv("OAUTH_TOKEN")
     if not oauth_token:
         raise ValueError("oauth_token is required")
 
