@@ -11,6 +11,8 @@ from slack_sdk.errors import SlackApiError
 load_dotenv()
 pp = pprint.PrettyPrinter(indent=4, width=180)
 known_users_file = Path("generated/known_users.json")
+known_users_file.parent.mkdir(parents=True, exist_ok=True)
+
 
 def get_known_users():
     """Load file with known users"""
