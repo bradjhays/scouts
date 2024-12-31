@@ -125,7 +125,6 @@ class SlackGoatBot:
 
         desc = event["description"]
         if '\\n' in desc:
-            raise Exception(desc)
             desc = desc.replace('\\n-----', '')
             desc = desc.split('\\n')
             del desc[0]
