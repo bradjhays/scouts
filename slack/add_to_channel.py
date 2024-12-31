@@ -2,21 +2,30 @@
 import json
 import os
 import pprint
+from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
+
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 load_dotenv()
 pp = pprint.PrettyPrinter(indent=4, width=180)
-known_users_file = Path("generated/known_users.json")
-known_users_file.parent.mkdir(parents=True, exist_ok=True)
 
 
-def get_known_users():
+@lru_cache
+def get_known_users_file(workspace):
+    """."""
+    known_users_file = Path(f"generated/{workspace}_known_users.json")
+    known_users_file.parent.mkdir(parents=True, exist_ok=True)
+    return known_users_file
+
+
+def get_known_users(workspace):
     """Load file with known users"""
     ret = {}
+    known_users_file = get_known_users_file(workspace)
     if known_users_file.exists():
         try:
             with known_users_file.open(encoding="utf-8") as fobj:
@@ -28,24 +37,28 @@ def get_known_users():
     return ret
 
 
-def save_known_users(users):
+def save_known_users(workspace, users):
     """Cache users to limit the api calls."""
     if not users:
         raise ValueError("users required")
-    with known_users_file.open('w', encoding="utf-8") as fobj:
+    with get_known_users_file(workspace).open('w', encoding="utf-8") as fobj:
         json.dump(users, fobj, indent=4)
 
 
-def add_all_users_to_channel(channel_name='announcements', channel_id='C07AUBXDLSG'):
+def add_all_users_to_channel(workspace, channel_name='announcements'):
     """Add all the user in the workspace to the given channel."""
-    oauth_token = os.getenv("OAUTH_TOKEN")
+    if not workspace:
+        raise ValueError("workspace is required")
+    channel_id = os.getenv(f"{workspace}_ANNOUNCE_CHANNEL_ID".upper())
+    token_name = f"{workspace}_OAUTH_TOKEN".upper()
+    oauth_token = os.getenv(token_name)
     if not oauth_token:
-        raise ValueError("oauth_token is required")
+        raise ValueError(f"{token_name} is required")
 
     client = WebClient(token=oauth_token)
 
     results = {"already_in_channel": [], "added": [], "skipped": []}
-    known_users = get_known_users()
+    known_users = get_known_users(workspace)
     try:
         print(f"Add users to channel {channel_name} ({channel_id}).")
 
@@ -68,7 +81,7 @@ def add_all_users_to_channel(channel_name='announcements', channel_id='C07AUBXDL
                     if reason not in results:
                         results[reason] = []
                     results[reason].append(user['name'])
-        save_known_users(known_users)
+        save_known_users(workspace, known_users)
 
     except SlackApiError as e:
         print(f"Slack API Error: {e.response['error']}")

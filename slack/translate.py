@@ -6,9 +6,10 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-import jicson
 import pytz
 from dateutil import parser
+
+import jicson
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,9 @@ def event_type(event_str):
                 # leave the knowns alone
                 # insensitive = re.compile(re.escape(known), re.IGNORECASE)
                 # clean = insensitive.sub('', clean).replace("[]", "")
+        if clean.lower().endswith(" meeting"):
+            meet_type = clean.lower().split(" meeting")[0]
+            etypes.append(meet_type.strip())
 
     else:
         raise ValueError(event_str)
@@ -91,7 +95,7 @@ def get_theme(description):
 
 def get_skillset(description):
     """."""
-    reg = r"Skillset:(.*)T-minus"
+    reg = r"Skills:(.*)T-minus"
     matches = re.findall(reg, description, re.MULTILINE | re.IGNORECASE)
     if matches:
         return matches[0]

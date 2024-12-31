@@ -4,6 +4,7 @@ import logging
 import os
 import pprint
 from datetime import date, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import requests
@@ -21,12 +22,12 @@ CONFIG = {
 pp = pprint.PrettyPrinter(indent=4)
 
 
-def pull_and_read(ics_url, pull_new=True):
+def pull_and_read(workspace, ics_url, pull_new=True):
     """."""
     # download the ical
     if not ics_url:
         raise ValueError("ics_url is required!")
-    cal_file_obj = Path("calendars/BSA_116_Activities.ics")
+    cal_file_obj = Path(f"calendars/{workspace}_activities.ics")
     cal_file_obj.parent.mkdir(parents=True, exist_ok=True)
     if pull_new:
         with cal_file_obj.open("w+", encoding="utf-8") as fobj:
@@ -42,17 +43,32 @@ def get_next_meeting(calendar_info, notify_types, weeks=1):
     possible_events = []
     for event in calendar_info:
         if event["types"] == []:
+            print(f'{event["start"].split(" ")[0]} {event["title"]}: {event["types"]}... no types, skipped')
             continue
-        if event["start"].startswith(str(next_monday)):
-            possible_events.append(event)
+        # if event["start"].startswith(str(next_monday)):
+        #     possible_events.append(event)
         notify = False
         for ntype in notify_types:
             if ntype in event["types"]:
                 notify = True
                 break
+            # else:
+            #     # print(event)
+                
         if not notify:
+            print(f'{event["start"].split(" ")[0]} {event["title"]}: {event["types"]}... skipped not in {notify_types}')
             continue
+        else:
+            if event["start"].startswith(str(next_monday)):
+                possible_events.append(event)
+            print(f'{event["start"].split(" ")[0]} {event["title"]}: {event["types"]}... notify')
     return possible_events
+
+
+@lru_cache
+def get_meeting_type_for_workspace(workspace):
+    """."""
+    return os.getenv(f"{workspace}_MEETING_TYPE".upper())
 
 
 class SlackGoatBot:
@@ -61,23 +77,24 @@ class SlackGoatBot:
     def __init__(self, cli_args):
         """Main!."""
         self.cli_args = cli_args
-        hook_key = f"{cli_args.channel}_hook_url".upper()
+        self.workspace = cli_args.workspace
+        hook_key = f"{cli_args.workspace}_{cli_args.channel}_hook_url".upper()
         self.hook_url = CONFIG.get(hook_key)
         if not self.hook_url:
             raise ValueError(f"'{hook_key}' not found in .env")
 
         if cli_args.notify_meeting:
-            calendar_info = pull_and_read(ics_url=CONFIG["TM_URL"])
+            calendar_info = pull_and_read(self.workspace, ics_url=CONFIG["TM_URL"])
             print(f"found {len(calendar_info)} calendar items")
             self.notify_next_meeting(calendar_info=calendar_info, weeks=cli_args.weeks)
         elif cli_args.add_announce:
-            add_to_channel.add_all_users_to_channel()
+            add_to_channel.add_all_users_to_channel(self.workspace)
         else:
             raise ValueError(f"invalid selection: {cli_args}")
 
     def notify_next_meeting(self, calendar_info, weeks=1):
         """Choose the next meeting and post to slack."""
-        notify_types = ["h", "tm"]
+        notify_types = ["h", "tm", get_meeting_type_for_workspace(self.workspace)]
         possible_events = get_next_meeting(
             calendar_info=calendar_info, notify_types=notify_types, weeks=weeks
         )
@@ -90,8 +107,8 @@ class SlackGoatBot:
         print("send message")
         pp.pprint(event)
         holiday = "h" in event["types"]
-        meeting = "tm" in event["types"]
-        t_minus = event["t-minus"]
+        meeting = "tm" in event["types"] or get_meeting_type_for_workspace(self.workspace) in event["types"]
+        # t_minus = event["t-minus"]
 
         str_format = "%b %d @ %I:%M%p"
         if event["all_day"]:
@@ -107,6 +124,15 @@ class SlackGoatBot:
         attachments = []
 
         desc = event["description"]
+        if '\\n' in desc:
+            raise Exception(desc)
+            desc = desc.replace('\\n-----', '')
+            desc = desc.split('\\n')
+            del desc[0]
+            del desc[0]
+        if isinstance(desc, str):
+            # Needs to be lines
+            desc = desc.split('\n')
         if meeting and desc:
             # green
             attachments.append(
@@ -121,45 +147,48 @@ class SlackGoatBot:
                 }
             )
 
-        skillset = event["skillset"].strip()
-        if (
-            meeting
-            and skillset
-            and "".join(desc) != skillset
-            and "coh" not in event["types"]
-        ):
-            # yellow
-            attachments.append(
-                {
-                    "color": "#ffbd33",
-                    "blocks": [
-                        {
-                            "type": "section",
-                            "text": {
-                                "type": "mrkdwn",
-                                "text": event["skillset"].strip(),
-                            },
-                        }
-                    ],
-                }
-            )
+        # if "skillset" in event and event["skillset"]:
+        #     skillset = event["skillset"].strip()
+        # if (
+        #     meeting
+        #     and skillset
+        #     and "".join(desc) != skillset
+        #     and "coh" not in event["types"]
+        # ):
+        #     # yellow
+        #     attachments.append(
+        #         {
+        #             "color": "#ffbd33",
+        #             "blocks": [
+        #                 {
+        #                     "type": "section",
+        #                     "text": {
+        #                         "type": "mrkdwn",
+        #                         "text": event["skillset"].strip(),
+        #                     },
+        #                 }
+        #             ],
+        #         }
+        #     )
+        # else:
+        #     print(f"meeting({bool(meeting)}), skillset({bool(skillset)}), desc != skillset ({bool(''.join(desc) != skillset)}) and not coh failed ({'coh' not in event['types']})")
 
-        if meeting and t_minus and "coh" not in event["types"]:
-            # grey
-            attachments.append(
-                {
-                    "color": "#ffffff",
-                    "blocks": [
-                        {
-                            "type": "section",
-                            "text": {
-                                "type": "mrkdwn",
-                                "text": "\n - " + "\n - ".join(t_minus),
-                            },
-                        }
-                    ],
-                }
-            )
+        # if meeting and t_minus and "coh" not in event["types"]:
+        #     # grey
+        #     attachments.append(
+        #         {
+        #             "color": "#ffffff",
+        #             "blocks": [
+        #                 {
+        #                     "type": "section",
+        #                     "text": {
+        #                         "type": "mrkdwn",
+        #                         "text": "\n - " + "\n - ".join(t_minus),
+        #                     },
+        #                 }
+        #             ],
+        #         }
+        #     )
 
         msg.append(event["title"])
         msg.append("<!channel>")
@@ -180,6 +209,10 @@ if __name__ == "__main__":
         format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
     )
     arg_parser = argparse.ArgumentParser(description="Goat Bot!")
+
+    arg_parser.add_argument(
+        "workspace", help="workspace to apply actions to"
+    )
 
     arg_parser.add_argument(
         "-w", "--weeks", type=int, default=1, help="Number of weeks to notify on"
