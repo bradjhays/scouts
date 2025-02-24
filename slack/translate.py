@@ -32,7 +32,9 @@ known_meetings = {
     "No Troop Mtg": "no",
     "holiday": "h",
     "Court Of Honor": "coh",
-    "coh": "coh"
+    "coh": "coh",
+    "T5116": "5116",
+    "T116": "116"
 }
 
 # t_minus_types = ["c", "o", "d", "do", "f", "s"]
@@ -44,25 +46,30 @@ def event_type(event_str):
     type_regex = r"\[([a-z\?]{1,2})\]"  # r"^\[([a-z]+)\]\ "
     etypes = re.findall(type_regex, str(event_str), re.IGNORECASE | re.MULTILINE)
     logger.info("%s from '%s'", etypes, event_str)
-    clean = event_str
+    clean = event_str.lower()
     if etypes:
         for etype in etypes:
             logger.info("removing [%s]", etype)
-            clean = clean.replace(f"[{etype}]", "")
+            clean = clean.replace(f"[{etype.lower()}]", "")
     if clean:
         for known, abbr in known_meetings.items():
             logger.info("check '%s' in %s", known, clean.lower())
             if known.lower() in clean.lower():
+                logger.info("adding '%s'", abbr)
                 etypes.append(abbr)
                 # leave the knowns alone
                 # insensitive = re.compile(re.escape(known), re.IGNORECASE)
                 # clean = insensitive.sub('', clean).replace("[]", "")
         if clean.lower().endswith(" meeting"):
+            if '[' in clean and ']' in clean:
+                clean = clean.split(']', maxsplit=1)[-1]
             meet_type = clean.lower().split(" meeting")[0]
+            logger.info("adding '%s'", meet_type.strip())
             etypes.append(meet_type.strip())
 
     else:
         raise ValueError(event_str)
+    logger.info("++ %s from '%s'", etypes, event_str)
 
     ret = []
     for abr in etypes:
@@ -73,7 +80,8 @@ def event_type(event_str):
         #     raise Exception(f"'{abr}' not in {EVENT_TYPES.keys()} for '{event_str}'")
         # else:
         ret.append(abr.lower())
-
+    # if 'monthly plc meeting' in clean:
+    #     raise ValueError('boom')
     return clean, ret
 
 
@@ -112,10 +120,11 @@ def get_t_minus(description):
     if matches:
         logger.info(" => %s", matches[0].strip())
         for line in matches[0].split('\\n'):
-            if line.lstrip().startswith('-') and len(line.strip()) > 1:
+            if line.lstrip().startswith('-') and len(line.replace('-', '').strip()) > 1:
                 line = line.lstrip()[1:].lstrip().title()
                 ret.append(line)
         # raise ValueError(description)
+        # print(f" => {matches[0].strip()} ===> {ret}")
         return sorted(ret)
     logger.debug("'%s' has no t_minus", description)
     return ret

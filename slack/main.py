@@ -12,6 +12,7 @@ from dateutil import parser
 from dotenv import dotenv_values
 
 import add_to_channel
+import cal_tools
 import translate
 
 logger = logging.getLogger(__name__)
@@ -30,8 +31,11 @@ def pull_and_read(workspace, ics_url, pull_new=True):
     cal_file_obj = Path(f"calendars/{workspace}_activities.ics")
     cal_file_obj.parent.mkdir(parents=True, exist_ok=True)
     if pull_new:
+        logger.info("pulling new ics from (%s) %s", workspace, ics_url)
         with cal_file_obj.open("w+", encoding="utf-8") as fobj:
             fobj.write(requests.get(ics_url, timeout=30).text)
+    else:
+        logger.info("pull_new false")
     return translate.translate_ics(ics_file_obj=cal_file_obj)
 
 
@@ -89,6 +93,11 @@ class SlackGoatBot:
             self.notify_next_meeting(calendar_info=calendar_info, weeks=cli_args.weeks)
         elif cli_args.add_announce:
             add_to_channel.add_all_users_to_channel(self.workspace)
+
+        elif cli_args.troop_reminder:
+            notify_types = ["h", "tm", 'plc', get_meeting_type_for_workspace(self.workspace)]
+            calendar_info = pull_and_read(self.workspace, ics_url=CONFIG["TM_URL"])
+            cal_tools.troop_reminders(calendar_info, notify_types)
         else:
             raise ValueError(f"invalid selection: {cli_args}")
 
@@ -203,7 +212,7 @@ class SlackGoatBot:
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.WARN,
+        level=logging.INFO,
         force=True,
         format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
     )
@@ -233,6 +242,13 @@ if __name__ == "__main__":
         "--channel",
         default="goat-tester",
         help="Send notification to this channel (must have '<channel_name_lowercase>_hook_url' in your .env)",
+    )
+
+    arg_parser.add_argument(
+        "-tr",
+        "--troop_reminder",
+        action="store_true",
+        help="print troop reminder info",
     )
 
     arg_parser.add_argument(
